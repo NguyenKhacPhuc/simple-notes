@@ -1,0 +1,55 @@
+CREATE TABLE NoteEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    is_deleted INTEGER NOT NULL DEFAULT 0,
+    sync_version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    sync_status TEXT NOT NULL DEFAULT 'SYNCED'
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS NoteFts USING fts5(title, body, content=NoteEntity, content_rowid=rowid);
+
+CREATE TRIGGER IF NOT EXISTS note_ai AFTER INSERT ON NoteEntity BEGIN
+    INSERT INTO NoteFts(rowid, title, body) VALUES (new.rowid, new.title, new.body);
+END;
+
+CREATE TRIGGER IF NOT EXISTS note_au AFTER UPDATE ON NoteEntity BEGIN
+    INSERT INTO NoteFts(NoteFts, rowid, title, body) VALUES ('delete', old.rowid, old.title, old.body);
+    INSERT INTO NoteFts(rowid, title, body) VALUES (new.rowid, new.title, new.body);
+END;
+
+CREATE TRIGGER IF NOT EXISTS note_ad AFTER DELETE ON NoteEntity BEGIN
+    INSERT INTO NoteFts(NoteFts, rowid, title, body) VALUES ('delete', old.rowid, old.title, old.body);
+END;
+
+getAll:
+SELECT * FROM NoteEntity
+WHERE is_deleted = 0
+ORDER BY updated_at DESC;
+
+getById:
+SELECT * FROM NoteEntity
+WHERE id = ?;
+
+upsert:
+INSERT OR REPLACE INTO NoteEntity(id, user_id, title, body, is_deleted, sync_version, created_at, updated_at, sync_status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+markDeleted:
+UPDATE NoteEntity SET is_deleted = 1, sync_status = 'PENDING', updated_at = ? WHERE id = ?;
+
+updateSyncStatus:
+UPDATE NoteEntity SET sync_status = ? WHERE id = ?;
+
+searchNotes:
+SELECT NoteEntity.* FROM NoteEntity
+WHERE NoteEntity.rowid IN (
+    SELECT rowid FROM NoteFts WHERE NoteFts MATCH :query
+) AND NoteEntity.is_deleted = 0
+ORDER BY NoteEntity.updated_at DESC;
+
+deleteAll:
+DELETE FROM NoteEntity;

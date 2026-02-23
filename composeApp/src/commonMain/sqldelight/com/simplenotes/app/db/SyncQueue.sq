@@ -1,0 +1,20 @@
+CREATE TABLE SyncQueueEntry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    queued_at TEXT NOT NULL
+);
+
+allPending:
+SELECT * FROM SyncQueueEntry ORDER BY id ASC;
+
+insert:
+INSERT INTO SyncQueueEntry(note_id, action, payload, queued_at)
+VALUES (?, ?, ?, ?);
+
+deleteEntry:
+DELETE FROM SyncQueueEntry WHERE id = ?;
+
+deleteAll:
+DELETE FROM SyncQueueEntry;
